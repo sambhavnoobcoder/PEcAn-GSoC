@@ -1,3 +1,60 @@
+##' @title Preprocess Data for Downscaling
+##' @name NA_preprocess
+##' @description This function reads and checks the input data, ensuring that the required date and carbon pool exist, and that the site coordinates are valid.
+##'
+##' @param data_path Character. File path for .rds containing ensemble data.
+##' @param coords_path Character. File path for .csv file containing the site coordinates, with columns named "lon" and "lat".
+##' @param date Character. If SDA site run, format is yyyy/mm/dd; if NEON, yyyy-mm-dd. Restricted to years within the file supplied to 'data_path'.
+##' @param C_pool Character. Carbon pool of interest. Name must match the carbon pool name found within the file supplied to 'data_path'.
+##'
+##' @details This function ensures that the specified date and carbon pool are present in the input data. It also checks the validity of the site coordinates and aligns the number of rows between site coordinates and carbon data.
+##'
+##' @return A list containing The read .rds data , The cleaned site coordinates ,The extracted and possibly truncated carbon data.
+
+# Preprocess function to check and clean the data
+NA_preprocess <- function(data_path, coords_path, date, C_pool) {
+  # Read the input data and site coordinates
+  input_data <- readRDS(data_path)
+  site_coordinates <- read_csv(coords_path)
+  
+  # Ensure the date exists in the input data
+  if (!date %in% names(input_data)) {
+    stop(paste("Date", date, "not found in the input data."))
+  }
+  
+  # Extract the carbon data for the specified focus year
+  index <- which(names(input_data) == date)
+  data <- input_data[[index]]
+  
+  # Ensure the carbon pool exists in the input data
+  if (!C_pool %in% names(data)) {
+    stop(paste("Carbon pool", C_pool, "not found in the input data."))
+  }
+  
+  carbon_data <- as.data.frame(t(data[which(names(data) == C_pool)]))
+  names(carbon_data) <- paste0("ensemble", seq(ncol(carbon_data)))
+  
+  # Ensure site coordinates have 'lon' and 'lat' columns
+  if (!all(c("lon", "lat") %in% names(site_coordinates))) {
+    stop("Site coordinates must contain 'lon' and 'lat' columns.")
+  }
+  
+  # Ensure the number of rows in site coordinates matches the number of rows in carbon data
+  if (nrow(site_coordinates) != nrow(carbon_data)) {
+    message("Number of rows in site coordinates does not match the number of rows in carbon data.")
+    if (nrow(site_coordinates) > nrow(carbon_data)) {
+      message("Truncating site coordinates to match carbon data rows.")
+      site_coordinates <- site_coordinates[1:nrow(carbon_data), ]
+    } else {
+      message("Truncating carbon data to match site coordinates rows.")
+      carbon_data <- carbon_data[1:nrow(site_coordinates), ]
+    }
+  }
+  
+  message("Preprocessing completed successfully.")
+  return(list(input_data = input_data, site_coordinates = site_coordinates, carbon_data = carbon_data))
+}
+
 ##' @title North America Downscale Function
 ##' @name NA_downscale
 ##' @author Joshua Ploshay
